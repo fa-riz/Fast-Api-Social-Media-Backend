@@ -56,3 +56,16 @@ def delete_post(post_name: str):
             data["posts"].remove(post)
             return {"message": f"Post with title '{post_name}' deleted successfully with id {del_post['id']}."}
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Post with title '{post_name}' not found")
+
+@app.put("/posts/{post_id}")
+def update_post(post_id: int, payload: Post):
+    pd = payload.dict()
+    if pd["id"] is None:
+        pd["id"] = post_id
+    if pd["id"] != post_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ID in the payload does not match the path parameter")
+    for post in data["posts"]:
+        if post["id"] == post_id:
+            post.update(pd)
+            return post
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Post with id {post_id} not found")
