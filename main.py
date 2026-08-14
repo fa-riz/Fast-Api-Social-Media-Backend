@@ -1,12 +1,26 @@
 from fastapi import FastAPI, HTTPException, Response, status
 from fastapi.params import Body
+import psycopg2
 from pydantic import BaseModel
+from psycopg2.extras import RealDictCursor 
 
 class Post(BaseModel):
     id: int | None = None
     title: str
     content: str
+    pubished: bool  = True
+data = {"posts": [
+        {"id": 1, "title": "First Post", "content": "This is the first post.", "published": True},
+        {"id": 2, "title": "Second Post", "content": "This is the second post.", "published": True},
+        {"id": 3, "title": "Third Post", "content": "This is the third post.", "published": True}
+    ]}
 
+try:
+    conn = psycopg2.connect(host='localhost', database='insta', user='postgres', password='1234', cursor_factory=RealDictCursor)
+    cursor = conn.cursor() #execute sql statements
+    print("Database connection was successful")
+except psycopg2.Error as e:
+    print(f"Database connection error: {e}")
 
 app = FastAPI()
 
@@ -14,11 +28,7 @@ app = FastAPI()
 async def root():                                #plain function that returns a JSON response with a message "Hello World"  
     return {"message": "Hello World ffdfd!!!!!!"}
 
-data = {"posts": [
-        {"id": 1, "title": "First Post", "content": "This is the first post."},
-        {"id": 2, "title": "Second Post", "content": "This is the second post."},
-        {"id": 3, "title": "Third Post", "content": "This is the third post."}
-    ]}
+
 
 @app.get("/posts")                                    # decoratr - '@'
 async def get_posts():
