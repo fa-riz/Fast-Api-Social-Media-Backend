@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from psycopg2.extras import RealDictCursor 
 import time
 from .database import engine,get_db
-from . import models
+from . import models,schemas
 
 
 
@@ -13,13 +13,6 @@ models.Base.metadata.create_all(bind=engine) # Create tables based on the models
 
 
 
-class Post(BaseModel):
-    id: int | None = None
-    title: str
-    content: str
-    published: bool  = True
-    
-    
 
 
 app = FastAPI()
@@ -30,15 +23,15 @@ async def root():                                #plain function that returns a 
 
 
 
-@app.get("/posts")                                    # decoratr - '@'
+@app.get("/posts",response_model=list[schemas.PostResponse], status_code=status.HTTP_200_OK)                                    # decoratr - '@'
 async def get_posts(db: get_db = Depends(get_db)):
     # cursor.execute("SELECT * FROM posts")
     # data = cursor.fetchall()
     data = db.query(models.Posts).all()
     return data
 
-@app.post("/posts")                                    # decoratr - '@'
-async def create_post(payload: Post, db: get_db = Depends(get_db)):
+@app.post("/posts", response_model=schemas.PostResponse, status_code=status.HTTP_201_CREATED)                                    # decoratr - '@'
+async def create_post(payload: schemas.PostCreate, db: get_db = Depends(get_db)):
     #  cursor.execute("SELECT COUNT(*) FROM posts ")
     # count = cursor.fetchone()['count']
     # new_post = payload.dict()
@@ -54,7 +47,7 @@ async def create_post(payload: Post, db: get_db = Depends(get_db)):
     return new_post
 
 
-@app.get("/posts/latest")
+@app.get("/posts/latest", response_model=schemas.PostResponse, status_code=status.HTTP_200_OK)
 def get_latest_post(db: get_db = Depends(get_db)):
     latest_post = db.query(models.Posts).order_by(models.Posts.id.desc()).first()
     if latest_post:
@@ -62,14 +55,14 @@ def get_latest_post(db: get_db = Depends(get_db)):
     return {"error": "No posts available"}
 
 
-@app.get("/posts/{post_id}")
+@app.get("/posts/{post_id}", response_model=schemas.PostResponse, status_code=status.HTTP_200_OK)
 def get_post(post_id: int, db: get_db = Depends(get_db)):
     post = db.query(models.Posts).filter(models.Posts.id == post_id).first()
     if post:
         return post
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Post with id {post_id} not found")
 
-@app.delete("/posts/{post_name}")
+@app.delete("/posts/{post_name}", response_model=schemas.PostResponse, status_code = status.HTTP_204_NO_CONTENT)
 def delete_post(post_name: str, db: get_db = Depends(get_db)):
     post = db.query(models.Posts).filter(models.Posts.title == post_name).first()
     if post:
@@ -78,8 +71,8 @@ def delete_post(post_name: str, db: get_db = Depends(get_db)):
         return {"message": f"Post with title '{post_name}' deleted successfully with id {post.id}."}
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Post with title '{post_name}' not found")
 
-@app.put("/posts/{post_id}")
-def update_post(post_id: int, payload: Post, db: get_db = Depends(get_db)):
+@app.put("/posts/{post_id}", response_model=schemas.PostResponse, status_code=status.HTTP_200_OK)
+def update_post(post_id: int, payload: schemas.PostUpdate, db: get_db = Depends(get_db)):
     pd = payload.dict()
     if pd["id"] is None:
         pd["id"] = post_id
