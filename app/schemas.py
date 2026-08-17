@@ -1,4 +1,8 @@
-from pydantic import BaseModel
+
+from datetime import datetime
+import time
+
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 class Post(BaseModel):
     id: int | None = None
@@ -13,6 +17,7 @@ class PostCreate(BaseModel):
     published: bool = True 
 
 class PostUpdate(BaseModel):
+    id: int | None = None
     title: str | None = None
     content: str | None = None
     published: bool | None = None
@@ -22,5 +27,25 @@ class PostResponse(BaseModel):
     title: str
     content: str
     published: bool
-    class Config:
-        orm_mode = True
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+    
+    
+class UserResponse(BaseModel):
+    id: int
+    email: EmailStr
+    is_active: bool
+    model_config = ConfigDict(from_attributes=True)
+
+    
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    
+class UpdateUser(BaseModel):
+    id: int | None = None
+    email: EmailStr | None = None
+    password: str | None = None
+    is_active: bool | None = None
+    
+
