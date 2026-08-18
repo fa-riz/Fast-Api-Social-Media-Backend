@@ -1,15 +1,15 @@
 from fastapi import FastAPI, HTTPException, Response, status, APIRouter
 from fastapi.params import  Depends
 from app.database import get_db
-from app import models,schemas,utils
+from .. import models,schemas,utils
 import app
 
 
 
 router = APIRouter(
-    prefix="/users",
     tags=["Users"],
     responses={404: {"description": "Not found"}}
+    
 )
 
 

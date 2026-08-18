@@ -1,27 +1,26 @@
 from fastapi import FastAPI, HTTPException, Response, status, APIRouter
 from fastapi.params import  Depends
 from app.database import get_db
-from app import models,schemas
+from .. import models,schemas,oauth2
 import app
 
 
 
 router = APIRouter(
-    prefix="/posts", 
     tags=["Posts"],
     responses={404: {"description": "Not found"}}
 )
 
 
 @router.get("/posts",response_model=list[schemas.PostResponse], status_code=status.HTTP_200_OK)                                    # decoratr - '@'
-async def get_posts(db: get_db = Depends(get_db)):
+async def get_posts(db: get_db = Depends(get_db),current_user: str = Depends(oauth2.get_current_user)): 
     # cursor.execute("SELECT * FROM posts")
     # data = cursor.fetchall()
     data = db.query(models.Posts).all()
     return data
 
 @router.post("/posts", response_model=schemas.PostResponse, status_code=status.HTTP_201_CREATED)                                    # decoratr - '@'
-async def create_post(payload: schemas.PostCreate, db: get_db = Depends(get_db)):
+async def create_post(payload: schemas.PostCreate, db: get_db = Depends(get_db), current_user: str = Depends(oauth2.get_current_user)):
     #  cursor.execute("SELECT COUNT(*) FROM posts ")
     # count = cursor.fetchone()['count']
     # new_post = payload.dict()
@@ -29,6 +28,7 @@ async def create_post(payload: schemas.PostCreate, db: get_db = Depends(get_db))
     # cursor.execute("INSERT INTO posts (id, title, content, published) VALUES (%s, %s, %s, %s) RETURNING *", (new_post["id"], new_post["title"], new_post["content"], new_post["published"]))
     # created_post = cursor.fetchone()
     # conn.commit()
+    print("User creating post:", current_user)
     p = payload.dict()
     p["id"] = None  # Set id to None to let the database handle auto-increment
     new_post = models.Posts(**p)
