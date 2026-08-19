@@ -9,7 +9,7 @@ class Posts(Base):
     content = Column(String, nullable=False)
     published = Column(Boolean, server_default=text('true'))  # Assuming published is a boolean represented as an integer (1 for True, 0 for False)
     created_at = Column(TIMESTAMP(timezone=True), server_default=text('now()'), nullable=False)
-    
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)  # Assuming user_id is a foreign key referencing the users table
 class Users(Base):
     __tablename__ = 'users'
 

@@ -9,18 +9,21 @@ class Post(BaseModel):
     title: str
     content: str
     published: bool  = True
+    user_id: int 
     
 
 class PostCreate(BaseModel):
     title: str
     content: str
     published: bool = True 
+    user_id: int   # Optional user_id field for creating a post
 
 class PostUpdate(BaseModel):
     id: int | None = None
     title: str | None = None
     content: str | None = None
     published: bool | None = None
+    user_id: int  # Optional user_id field for updating a post
     
 class PostResponse(BaseModel):
     id: int
@@ -28,6 +31,7 @@ class PostResponse(BaseModel):
     content: str
     published: bool
     created_at: datetime
+    user_id: int
     model_config = ConfigDict(from_attributes=True)
     
     
