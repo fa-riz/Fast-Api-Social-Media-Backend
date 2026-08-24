@@ -51,11 +51,11 @@ def update_user(user_id: int, payload: schemas.UpdateUser, db: get_db = Depends(
         return user.first()
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User with id {user_id} not found")
 
-@router.delete("/users/{user_email}", response_model=schemas.UserResponse, status_code = status.HTTP_200_OK)
-def delete_user(user_email: str, db: get_db = Depends(get_db)):
-    user = db.query(models.Users).filter(models.Users.email == user_email).first()
+@router.delete("/users/{id}", response_model=schemas.UserResponse, status_code = status.HTTP_200_OK)
+def delete_user(id: int, db: get_db = Depends(get_db)):
+    user = db.query(models.Users).filter(models.Users.id == id).first()
     if user:
         db.delete(user)
         db.commit()
-        return {"message": f"User with email '{user_email}' deleted successfully with id {user.id}."}
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User with email '{user_email}' not found")
+        return user
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User with id {id} not found")

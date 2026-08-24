@@ -13,25 +13,19 @@ router = APIRouter(
 
 
 @router.get("/posts",response_model=list[schemas.PostResponse], status_code=status.HTTP_200_OK)                                    # decoratr - '@'
-async def get_posts(db: get_db = Depends(get_db),current_user: str = Depends(oauth2.get_current_user)): 
+async def get_posts(db: get_db = Depends(get_db),current_user: str = Depends(oauth2.get_current_user), limit: int = 10, skip: int = 0, search: str = ""):
+     
     # cursor.execute("SELECT * FROM posts")
     # data = cursor.fetchall()
-    data = db.query(models.Posts).all()
+    data = db.query(models.Posts).filter(models.Posts.title.contains(search)).limit(limit).offset(skip).all()
+    
     return data
 
 @router.post("/posts", response_model=schemas.PostResponse, status_code=status.HTTP_201_CREATED)                                    # decoratr - '@'
 async def create_post(payload: schemas.PostCreate, db: get_db = Depends(get_db), current_user: str = Depends(oauth2.get_current_user)):
-    #  cursor.execute("SELECT COUNT(*) FROM posts ")
-    # count = cursor.fetchone()['count']
-    # new_post = payload.dict()
-    # new_post["id"] = count + 1
-    # cursor.execute("INSERT INTO posts (id, title, content, published) VALUES (%s, %s, %s, %s) RETURNING *", (new_post["id"], new_post["title"], new_post["content"], new_post["published"]))
-    # created_post = cursor.fetchone()
-    # conn.commit()
     print("User creating post:", current_user)
-    p = payload.dict()
-    p["id"] = None  # Set id to None to let the database handle auto-increment
-    new_post = models.Posts(**p)
+   
+    new_post = models.Posts(**payload.dict(), user_id=current_user.id)  # Assuming current_user is a user object with an 'id' attribute
     db.add(new_post)
     db.commit()
     db.refresh(new_post)
@@ -53,14 +47,18 @@ def get_post(post_id: int, db: get_db = Depends(get_db)):
         return post
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Post with id {post_id} not found")
 
-@router.delete("/posts/{post_name}", response_model=schemas.PostResponse, status_code = status.HTTP_200_OK)
-def delete_post(post_name: str, db: get_db = Depends(get_db)):
-    post = db.query(models.Posts).filter(models.Posts.title == post_name).first()
+@router.delete("/posts/{id}", response_model=schemas.PostResponse, status_code = status.HTTP_200_OK)
+def delete_post(id: int, db: get_db = Depends(get_db), current_user: str = Depends(oauth2.get_current_user)):
+    post = db.query(models.Posts).filter(models.Posts.id == id).first()
+    
+    if post.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized to delete this post")
+
     if post:
         db.delete(post)
         db.commit()
-        return {"message": f"Post with title '{post_name}' deleted successfully with id {post.id}."}
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Post with title '{post_name}' not found")
+        return post
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Post with id {id} not found")
 
 @router.put("/posts/{post_id}", response_model=schemas.PostResponse, status_code=status.HTTP_200_OK)
 def update_post(post_id: int, payload: schemas.PostUpdate, db: get_db = Depends(get_db)):
