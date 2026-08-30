@@ -24,3 +24,9 @@ class Posts(Base):
     
        
   # Assuming is_active is a boolean represented as an integer (1 for True, 0 for False)
+  
+class Votes(Base):
+    __tablename__ = 'votes'
+
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    post_id = Column(Integer, ForeignKey("posts.id", ondelete="CASCADE"), primary_key=True)

@@ -2,7 +2,7 @@
 from datetime import datetime
 import time
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, conint
 
 class Post(BaseModel):
     id: int | None = None
@@ -43,6 +43,7 @@ class PostResponse(BaseModel):
     
     
     
+    
 
 
     
@@ -72,4 +73,9 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     id: str | None = None
+    
+    
+class Vote(BaseModel):
+    post_id: int
+    dir: conint(ge=-1, le=1)  # Assuming dir is an integer representing the direction of the vote (1 for upvote, -1 for downvote)
     

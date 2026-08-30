@@ -1,4 +1,7 @@
 include
 Lib
 Scripts
+__pycache__
 .gitignore
+
+.env
