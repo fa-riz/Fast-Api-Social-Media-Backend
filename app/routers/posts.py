@@ -2,6 +2,8 @@ from fastapi import FastAPI, HTTPException, Response, status, APIRouter
 from fastapi.params import  Depends
 from app.database import get_db
 from .. import models,schemas,oauth2
+from sqlalchemy import func 
+from typing import List
 import app
 
 
@@ -12,12 +14,12 @@ router = APIRouter(
 )
 
 
-@router.get("/posts",response_model=list[schemas.PostResponse], status_code=status.HTTP_200_OK)                                    # decoratr - '@'
+@router.get("/posts",response_model=List[schemas.PostOut], status_code=status.HTTP_200_OK)                                    # decoratr - '@'
 async def get_posts(db: get_db = Depends(get_db),current_user: str = Depends(oauth2.get_current_user), limit: int = 10, skip: int = 0, search: str = ""):
      
     # cursor.execute("SELECT * FROM posts")
     # data = cursor.fetchall()
-    data = db.query(models.Posts).filter(models.Posts.title.contains(search)).limit(limit).offset(skip).all()
+    data = db.query(models.Posts, func.count(models.Votes.user_id).label("vote_count")).join(models.Votes, models.Posts.id == models.Votes.post_id).filter(models.Votes.user_id == current_user.id).group_by(models.Posts.id).filter(models.Posts.title.contains(search)).limit(limit).offset(skip).all()
     
     return data
 

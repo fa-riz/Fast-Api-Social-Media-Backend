@@ -1,5 +1,6 @@
 
 from datetime import datetime
+from typing import Tuple
 import time
 
 from pydantic import BaseModel, ConfigDict, EmailStr, conint
@@ -61,11 +62,6 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
     
-class UserResponse(BaseModel):
-    id: int
-    email: EmailStr
-    is_active: bool
-    model_config = ConfigDict(from_attributes=True)
     
 class Token(BaseModel):
     access_token: str
@@ -79,3 +75,9 @@ class Vote(BaseModel):
     post_id: int
     dir: conint(ge=-1, le=1)  # Assuming dir is an integer representing the direction of the vote (1 for upvote, -1 for downvote)
     
+
+class PostOut(BaseModel):
+    Posts: PostResponse
+    vote_count : int
+    
+    model_config = ConfigDict(from_attributes=True)
