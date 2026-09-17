@@ -1,22 +1,22 @@
 from fastapi import FastAPI
 
-from .database import engine,get_db
-from . import models
-from .routers import posts,users,auth,votes
-from pydantic_settings import BaseSettings
-from .config import settings
+from . import models  # noqa: F401 (import registers all tables on Base.metadata for Alembic)
+from .routers import posts, users, auth, votes, comments, follows
 
-models.Base.metadata.create_all(bind=engine) # Create tables based on the models defined in models.py
+# Phase 0 introduces Alembic. Schema is now managed by migrations
+# (`alembic upgrade head`), not by create_all() on every app start -- see
+# /alembic/versions and the README in the docx for the one-time setup steps.
 
 app = FastAPI()
 
 app.include_router(posts.router)
 app.include_router(users.router)
 app.include_router(auth.router)
-app.include_router(votes.router)  # Include the votes router to handle voting functionality
+app.include_router(votes.router)
+app.include_router(comments.router)  # Phase 1: comments + threaded replies
+app.include_router(follows.router)   # Phase 2: follow / follower graph
 
-@app.get("/")                                    # decoratr - '@'
-async def root():                                #plain function that returns a JSON response with a message "Hello World"  
+
+@app.get("/")
+async def root():
     return {"message": "Hello World !!"}
-
-
