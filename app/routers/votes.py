@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
 from .. import models, schemas, oauth2
 from ..database import get_db
+from ..tasks import create_notification_task
 from sqlalchemy import func
 from typing import List
 
@@ -25,6 +26,13 @@ def vote(vote: schemas.Vote, db: Session = Depends(get_db), current_user: int = 
         new_vote = models.Votes(post_id=vote.post_id, user_id=current_user.id)
         db.add(new_vote)
         db.commit()
+
+        # Phase 5: enqueued, not written synchronously -- see comments.py note.
+        # Only upvotes notify; removing a vote is silent.
+        create_notification_task.delay(
+            recipient_id=post.user_id, actor_id=current_user.id,
+            type_="vote", target_type="post", target_id=post.id,
+        )
         return {"message": "Successfully added vote."}
     else:
         # Check if the user has already voted for the post

@@ -16,6 +16,9 @@ class PostCreate(BaseModel):
     title: str
     content: str
     published: bool = True
+    # Phase 4: ids of already-confirmed uploads (POST /media with no post_id)
+    # to attach to this post.
+    media_ids: list[int] = []
 
 
 class PostUpdate(BaseModel):
@@ -26,6 +29,9 @@ class PostUpdate(BaseModel):
     title: str | None = None
     content: str | None = None
     published: bool | None = None
+    # Phase 4: when sent, REPLACES the post's media with exactly these uploads
+    # (an empty list removes all media). Omit it to leave media untouched.
+    media_ids: list[int] | None = None
 
 
 class UserResponse(BaseModel):
@@ -33,6 +39,13 @@ class UserResponse(BaseModel):
     email: EmailStr
     is_active: bool
     role: str
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PostMedia(BaseModel):
+    id: int
+    url: str
+    media_type: str
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -44,6 +57,7 @@ class PostResponse(BaseModel):
     created_at: datetime
     user_id: int
     user: UserResponse
+    media: list[PostMedia] = []
     model_config = ConfigDict(from_attributes=True)
 
 

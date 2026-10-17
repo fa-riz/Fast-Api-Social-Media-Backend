@@ -1,5 +1,6 @@
 """Phase 5 — read side of notifications. The write side lives in tasks.py
-and is triggered from comments.py / follows.py, not from here."""
+and is triggered from comments.py / follows.py / votes.py / posts.py /
+messages.py, not from here."""
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
 

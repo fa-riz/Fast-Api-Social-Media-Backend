@@ -1,16 +1,35 @@
 from fastapi import HTTPException, status, APIRouter
 from fastapi.params import Depends
 from sqlalchemy import func
+from sqlalchemy.orm import selectinload
 from typing import List
 
 from app.database import get_db
 from .. import models, schemas, oauth2
+from ..tasks import notify_followers_of_post_task
 
 
 router = APIRouter(
     tags=["Posts"],
     responses={404: {"description": "Not found"}}
 )
+
+
+def _load_attachable_media(db, media_ids, user_id, post_id=None):
+    """Fetch the Media rows for `media_ids`, rejecting ids that don't exist,
+    belong to someone else, or are attached to a post other than `post_id`."""
+    media_ids = set(media_ids)
+    if not media_ids:
+        return []
+    media = db.query(models.Media).filter(models.Media.id.in_(media_ids)).all()
+    missing = media_ids - {m.id for m in media}
+    if missing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Media not found: {sorted(missing)}")
+    if any(m.user_id != user_id for m in media):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only attach your own media")
+    if any(m.post_id is not None and m.post_id != post_id for m in media):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Media is already attached to a post")
+    return media
 
 
 @router.get("/posts", response_model=List[schemas.PostOut], status_code=status.HTTP_200_OK)
@@ -23,6 +42,7 @@ async def get_posts(db: get_db = Depends(get_db), current_user: str = Depends(oa
     # *you* had voted on, instead of counting all votes on each post.
     data = (
         db.query(models.Posts, func.count(models.Votes.post_id).label("vote_count"))
+        .options(selectinload(models.Posts.media))
         .outerjoin(models.Votes, models.Posts.id == models.Votes.post_id)
         .filter(models.Posts.title.contains(search))
         .group_by(models.Posts.id)
@@ -38,10 +58,17 @@ async def get_posts(db: get_db = Depends(get_db), current_user: str = Depends(oa
 @router.post("/posts", response_model=schemas.PostResponse, status_code=status.HTTP_201_CREATED)
 async def create_post(payload: schemas.PostCreate, db: get_db = Depends(get_db),
                        current_user: str = Depends(oauth2.get_current_user)):
-    new_post = models.Posts(**payload.dict(), user_id=current_user.id)
+    media = _load_attachable_media(db, payload.media_ids, current_user.id)
+
+    new_post = models.Posts(**payload.dict(exclude={"media_ids"}), user_id=current_user.id)
+    new_post.media = media
     db.add(new_post)
     db.commit()
     db.refresh(new_post)
+
+    # Phase 5: the per-follower fan-out happens in the worker, not here.
+    if new_post.published:
+        notify_followers_of_post_task.delay(author_id=current_user.id, post_id=new_post.id)
     return new_post
 
 
@@ -96,7 +123,12 @@ def update_post(post_id: int, payload: schemas.PostUpdate, db: get_db = Depends(
     if post.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized to update this post")
 
-    update_data = payload.dict(exclude_unset=True)
-    post_query.update(update_data, synchronize_session=False)
+    update_data = payload.dict(exclude_unset=True, exclude={"media_ids"})
+    if payload.media_ids is not None:
+        # Media dropped from the list is detached (post_id -> NULL), not
+        # deleted, so the upload can still be attached to another post.
+        post.media = _load_attachable_media(db, payload.media_ids, current_user.id, post_id=post.id)
+    if update_data:
+        post_query.update(update_data, synchronize_session=False)
     db.commit()
     return post_query.first()

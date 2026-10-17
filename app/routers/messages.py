@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from .. import models, oauth2, schemas
 from ..database import get_db
 from ..pagination import decode_cursor, encode_cursor
+from ..tasks import create_notification_task
 from ..ws_manager import manager
 
 router = APIRouter(tags=["Messages"], responses={404: {"description": "Not found"}})
@@ -174,6 +175,12 @@ async def send_message(
     for participant_id in _participant_ids(db, id):
         if participant_id != current_user.id:
             await manager.send_to_user(participant_id, ws_payload)
+            # Phase 5: persistent notification too, so offline participants
+            # (no open socket) still see it in GET /notifications.
+            create_notification_task.delay(
+                recipient_id=participant_id, actor_id=current_user.id,
+                type_="message", target_type="conversation", target_id=id,
+            )
 
     return new_message
 

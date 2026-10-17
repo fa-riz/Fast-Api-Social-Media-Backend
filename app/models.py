@@ -26,6 +26,7 @@ class Posts(Base):
     created_at = Column(TIMESTAMP(timezone=True), server_default=text('now()'), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     user = relationship("Users")
+    media = relationship("Media", back_populates="post", order_by="Media.id")
 
 
 class Votes(Base):
@@ -113,7 +114,7 @@ class Media(Base):
     created_at = Column(TIMESTAMP(timezone=True), server_default=text('now()'), nullable=False)
 
     user = relationship("Users")
-    post = relationship("Posts")
+    post = relationship("Posts", back_populates="media")
 
 
 class Notifications(Base):
@@ -131,8 +132,8 @@ class Notifications(Base):
     id = Column(Integer, primary_key=True)
     recipient_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     actor_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    type = Column(String, nullable=False)          # 'comment' | 'reply' | 'follow'
-    target_type = Column(String, nullable=False)   # 'post' | 'comment' | 'user'
+    type = Column(String, nullable=False)          # 'comment' | 'reply' | 'follow' | 'vote' | 'post' | 'message'
+    target_type = Column(String, nullable=False)   # 'post' | 'comment' | 'user' | 'conversation'
     target_id = Column(Integer, nullable=False)
     is_read = Column(Boolean, nullable=False, server_default=text('false'))
     created_at = Column(TIMESTAMP(timezone=True), server_default=text('now()'), nullable=False)

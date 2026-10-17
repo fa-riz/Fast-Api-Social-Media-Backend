@@ -2,8 +2,8 @@
 FastAPI request/response cycle.
 
 Golden rule (see build-plan gotcha): never write a notification
-synchronously in the request path. `create_comment` (Phase 1) and
-`follow_user` (Phase 2) call `.delay(...)` on the task below, which just
+synchronously in the request path. `create_comment`, `follow_user`, `vote`,
+`create_post` and `send_message` call `.delay(...)` on the tasks below, which just
 serializes the arguments onto the Redis broker and returns immediately --
 the actual DB write happens later, in the worker process, off the critical
 path of the user's request.
@@ -51,5 +51,45 @@ def create_notification_task(recipient_id: int, actor_id: int, type_: str, targe
             recipient_id, actor_id, type_,
         )
         raise  # let autoretry_for above decide whether to try again
+    finally:
+        db.close()
+
+
+@celery_app.task(
+    name="app.tasks.notify_followers_of_post_task",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_kwargs={"max_retries": 3},
+)
+def notify_followers_of_post_task(author_id: int, post_id: int) -> None:
+    """Fan-out for a new post: one notification per follower of the author.
+    Done here in a single task (one query + one bulk insert) rather than the
+    request enqueueing one create_notification_task per follower, which
+    would put O(followers) work back on the request path."""
+    db = SessionLocal()
+    try:
+        follower_ids = [
+            row[0]
+            for row in db.query(models.Follows.follower_id)
+            .filter(models.Follows.followed_id == author_id)
+            .all()
+        ]
+        if not follower_ids:
+            return
+        db.add_all([
+            models.Notifications(
+                recipient_id=follower_id,
+                actor_id=author_id,
+                type="post",
+                target_type="post",
+                target_id=post_id,
+            )
+            for follower_id in follower_ids
+        ])
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to fan out post notifications (author=%s, post=%s)", author_id, post_id)
+        raise
     finally:
         db.close()
