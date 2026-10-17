@@ -1,0 +1,27 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+alembic
+psycopg2-binary
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt==4.0.1
+# ^ pinned: passlib 1.7.x reads bcrypt.__about__.__version__, which was
+#   removed in bcrypt>=4.1 -- newer bcrypt breaks password hashing at runtime
+#   until passlib publishes a fix. See docx notes for details.
+python-multipart
+pydantic-settings
+email-validator
+
+# Phase 3: feed cache
+redis
+
+# Phase 4: media uploads (pre-signed S3/R2 URLs)
+boto3
+
+# Phase 5: notifications job queue
+celery
+
+# Phase 6: WebSockets -- installed automatically by uvicorn[standard] above,
+# listed explicitly so `pip list` makes it obvious why it's there.
+websockets

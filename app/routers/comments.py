@@ -4,6 +4,7 @@ from typing import List
 
 from app.database import get_db
 from .. import models, schemas, oauth2
+from ..tasks import create_notification_task
 
 
 router = APIRouter(
@@ -49,6 +50,25 @@ def create_comment(post_id: int, payload: schemas.CommentCreate, db: get_db = De
     db.add(new_comment)
     db.commit()
     db.refresh(new_comment)
+
+    # Phase 5: enqueue, don't write synchronously (see build-plan gotcha).
+    # .delay() just pushes the arguments onto the Redis broker and returns
+    # immediately -- this request doesn't wait on the notification at all.
+    if payload.parent_id is not None:
+        # Reply: notify the comment being replied to, not the post owner.
+        parent = db.query(models.Comments).filter(models.Comments.id == payload.parent_id).first()
+        create_notification_task.delay(
+            recipient_id=parent.user_id, actor_id=current_user.id,
+            type_="reply", target_type="comment", target_id=new_comment.id,
+        )
+    else:
+        # Top-level comment: notify the post's owner.
+        post = _get_post_or_404(db, post_id)
+        create_notification_task.delay(
+            recipient_id=post.user_id, actor_id=current_user.id,
+            type_="comment", target_type="post", target_id=post_id,
+        )
+
     return new_comment
 
 

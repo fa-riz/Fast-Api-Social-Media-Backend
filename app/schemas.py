@@ -147,3 +147,132 @@ class FollowStats(BaseModel):
     user_id: int
     followers_count: int
     following_count: int
+
+
+# --- Phase 3: Feed ----------------------------------------------------------
+
+class FeedItem(BaseModel):
+    """One post as it appears in a feed page. Deliberately its own schema
+    (rather than reusing PostOut) because a feed item also carries an
+    optional `score` -- meaningless outside a ranked feed -- and needs a flat
+    shape that's cheap to JSON-cache in Redis (see feed.py)."""
+    id: int
+    title: str
+    content: str
+    published: bool
+    created_at: datetime
+    user_id: int
+    user: UserResponse
+    vote_count: int
+    score: float | None = None  # only set when sort="hot"
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FeedPage(BaseModel):
+    items: list[FeedItem]
+    next_cursor: str | None = None  # pass this back as ?cursor= to get the next page; None = no more pages
+
+
+# --- Phase 4: Media uploads --------------------------------------------------
+
+class MediaUploadRequest(BaseModel):
+    filename: str
+    content_type: str
+    media_type: str  # "image" | "video"
+
+
+class MediaUploadResponse(BaseModel):
+    """What the client needs to actually perform the upload, plus the object
+    key it must echo back to POST /media once the upload succeeds."""
+    upload_url: str
+    object_key: str
+    cdn_url: str
+    expires_in: int
+
+
+class MediaConfirm(BaseModel):
+    object_key: str
+    media_type: str
+    post_id: int | None = None
+
+
+class MediaResponse(BaseModel):
+    id: int
+    url: str
+    media_type: str
+    post_id: int | None
+    user_id: int
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Phase 5: Notifications ---------------------------------------------------
+
+class NotificationResponse(BaseModel):
+    id: int
+    recipient_id: int
+    actor_id: int
+    actor: UserResponse
+    type: str
+    target_type: str
+    target_id: int
+    is_read: bool
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UnreadCountResponse(BaseModel):
+    unread_count: int
+
+
+# --- Phase 6: Direct messaging -----------------------------------------------
+
+class ConversationCreate(BaseModel):
+    participant_ids: list[int]  # other users to include; the creator is added automatically
+
+
+class ConversationParticipantOut(BaseModel):
+    user_id: int
+    email: EmailStr
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ConversationResponse(BaseModel):
+    id: int
+    created_at: datetime
+    participants: list[ConversationParticipantOut]
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MessageCreate(BaseModel):
+    content: str
+
+
+class MessageResponse(BaseModel):
+    id: int
+    conversation_id: int
+    sender_id: int
+    content: str
+    created_at: datetime
+    is_read: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MessagePage(BaseModel):
+    items: list[MessageResponse]
+    next_cursor: str | None = None
+
+
+class WSMessageOut(BaseModel):
+    """What gets pushed down the WebSocket to other participants when a new
+    message is sent. Separate from MessageResponse only so the WS payload can
+    carry an explicit `event` discriminator -- a real client might later push
+    other event types (typing, read-receipts) down the same socket."""
+    event: str = "message.created"
+    message: MessageResponse

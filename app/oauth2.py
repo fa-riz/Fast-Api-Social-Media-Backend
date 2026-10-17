@@ -38,7 +38,12 @@ def verify_access_token(token: str, credentials_exception):
         raise credentials_exception
 
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: database.get_db = Depends(database.get_db)):
+def get_current_user_from_token(token: str, db) -> models.Users:
+    """The actual "who is this token for" logic, factored out of
+    get_current_user() so Phase 6's WebSocket route can reuse it. A WS
+    handshake has no Authorization header to pull a bearer token from (browser
+    WebSocket clients can't set custom headers), so it takes the token as a
+    plain `?token=` query parameter instead and calls this directly."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -51,6 +56,10 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: database.get_db = 
         raise credentials_exception
 
     return user
+
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: database.get_db = Depends(database.get_db)):
+    return get_current_user_from_token(token, db)
 
 
 # --- Refresh tokens (Phase 0) -------------------------------------------------

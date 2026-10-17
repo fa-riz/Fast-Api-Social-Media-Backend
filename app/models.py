@@ -89,3 +89,95 @@ class Follows(Base):
 
     follower = relationship("Users", foreign_keys=[follower_id])
     followed = relationship("Users", foreign_keys=[followed_id])
+
+
+# Phase 3 (feed generation) introduces no new tables -- it reads Posts,
+# Votes and Follows that already exist, and caches computed results in
+# Redis rather than Postgres. See app/routers/feed.py.
+
+
+class Media(Base):
+    """Phase 4: one row per uploaded file. We never store the file bytes in
+    Postgres -- only the CDN-facing URL and the S3 object key needed to
+    manage/delete the underlying object. `post_id` is nullable because an
+    upload is confirmed (this row is created) slightly before the client has
+    necessarily attached it to a post."""
+    __tablename__ = 'media'
+
+    id = Column(Integer, primary_key=True)
+    url = Column(String, nullable=False)               # CDN url, never the raw bucket url
+    media_type = Column(String, nullable=False)         # 'image' | 'video'
+    object_key = Column(String, nullable=False, unique=True)  # S3/R2 key, e.g. uploads/7/ab12-photo.jpg
+    post_id = Column(Integer, ForeignKey("posts.id", ondelete="CASCADE"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=text('now()'), nullable=False)
+
+    user = relationship("Users")
+    post = relationship("Posts")
+
+
+class Notifications(Base):
+    """Phase 5: `type` and `target_type` are plain strings, not Postgres
+    ENUMs -- same reasoning as Users.role (see Phase 0 note above and the
+    Phase 9 gotcha): a 3-8 value set that may grow, where adding a value to
+    a plain string column is a data change, not a migration.
+
+    `target_id` is intentionally NOT a foreign key -- it's polymorphic (a
+    comment id, a follow's follower_id, a post id, depending on `type`), so
+    it's validated in application code instead. Same pattern the build plan
+    uses for Reports.target_id in Phase 9."""
+    __tablename__ = 'notifications'
+
+    id = Column(Integer, primary_key=True)
+    recipient_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    actor_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    type = Column(String, nullable=False)          # 'comment' | 'reply' | 'follow'
+    target_type = Column(String, nullable=False)   # 'post' | 'comment' | 'user'
+    target_id = Column(Integer, nullable=False)
+    is_read = Column(Boolean, nullable=False, server_default=text('false'))
+    created_at = Column(TIMESTAMP(timezone=True), server_default=text('now()'), nullable=False)
+
+    recipient = relationship("Users", foreign_keys=[recipient_id])
+    actor = relationship("Users", foreign_keys=[actor_id])
+
+
+class Conversations(Base):
+    """Phase 6. Deliberately just an id + timestamp -- who's *in* the
+    conversation lives in ConversationParticipants, not here. That's what
+    makes group DMs possible later without a schema change (see build-plan
+    gotcha: "participants join table, not a flat sender/recipient pair")."""
+    __tablename__ = 'conversations'
+
+    id = Column(Integer, primary_key=True)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=text('now()'), nullable=False)
+
+
+class ConversationParticipants(Base):
+    """Join table between Conversations and Users. Composite PK, same trick
+    as Follows in Phase 2 -- naturally prevents adding the same user to a
+    conversation twice, no extra unique index needed."""
+    __tablename__ = 'conversation_participants'
+
+    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    joined_at = Column(TIMESTAMP(timezone=True), server_default=text('now()'), nullable=False)
+
+    user = relationship("Users")
+
+
+class Messages(Base):
+    """Phase 6. `is_read` here is a simple per-message flag (good enough for
+    a 1:1 or small-group DM). A larger system would instead track a
+    per-participant "last read message id" on ConversationParticipants --
+    see the docx for why that scales better with many participants."""
+    __tablename__ = 'messages'
+
+    id = Column(Integer, primary_key=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
+    sender_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    content = Column(String, nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=text('now()'), nullable=False)
+    is_read = Column(Boolean, nullable=False, server_default=text('false'))
+
+    sender = relationship("Users")
+    conversation = relationship("Conversations")

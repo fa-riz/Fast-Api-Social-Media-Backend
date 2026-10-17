@@ -4,6 +4,7 @@ from typing import List
 
 from app.database import get_db
 from .. import models, schemas, oauth2
+from ..tasks import create_notification_task
 
 
 router = APIRouter(
@@ -37,6 +38,13 @@ def follow_user(id: int, db: get_db = Depends(get_db), current_user: str = Depen
     db.add(new_follow)
     db.commit()
     db.refresh(new_follow)
+
+    # Phase 5: enqueued, not written synchronously -- see comments.py note.
+    create_notification_task.delay(
+        recipient_id=id, actor_id=current_user.id,
+        type_="follow", target_type="user", target_id=current_user.id,
+    )
+
     return new_follow
 
 
